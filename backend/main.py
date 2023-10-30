@@ -1,7 +1,4 @@
-import shutil
 import subprocess
-import random
-import config
 import os
 from pathlib import Path
 import threading
@@ -9,9 +6,13 @@ import cv2
 import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import config
 import importlib
 import numpy as np
 import tempfile
+import torch
+import time
+from paddle import fluid
 from tqdm import tqdm
 from tools.infer import utility
 from tools.infer.predict_det import TextDetector
@@ -59,13 +60,13 @@ class SubtitleDetect:
                 coordinate_list.append((xmin, xmax, ymin, ymax))
         return coordinate_list
 
-    def find_subtitle_frame_no(self):
+    def find_subtitle_frame_no(self, sub_remover=None):
         video_cap = cv2.VideoCapture(self.video_path)
         frame_count = video_cap.get(cv2.CAP_PROP_FRAME_COUNT)
-        tbar = tqdm(total=int(frame_count), unit='f', position=0, file=sys.__stdout__, desc='字幕查找')
+        tbar = tqdm(total=int(frame_count), unit='frame', position=0, file=sys.__stdout__, desc='Subtitle Finding')
         current_frame_no = 0
         subtitle_frame_no_list = {}
-
+        print('[Processing] start finding subtitles...')
         while video_cap.isOpened():
             ret, frame = video_cap.read()
             # 如果读取视频帧失败（视频读到最后一帧）
@@ -89,6 +90,9 @@ class SubtitleDetect:
                         temp_list.append((xmin, xmax, ymin, ymax))
                 subtitle_frame_no_list[current_frame_no] = temp_list
             tbar.update(1)
+            if sub_remover:
+                sub_remover.progress_total = (100 * float(current_frame_no)/float(frame_count)) // 2
+        print('[Finished] Finished finding subtitles...')
         return subtitle_frame_no_list
 
 
@@ -97,7 +101,6 @@ class SubtitleRemover:
         importlib.reload(config)
         # 线程锁
         self.lock = threading.RLock()
-        uln = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
         # 用户指定的字幕区域位置
         self.sub_area = sub_area
         # 视频路径
@@ -116,10 +119,18 @@ class SubtitleRemover:
         # 创建字幕检测对象
         self.sub_detector = SubtitleDetect(self.video_path, self.sub_area)
         # 创建视频写对象
-        self.video_temp_out_name = os.path.join(os.path.dirname(self.video_path), f'{self.vd_name}_{"".join(random.sample(uln, 8))}.mp4')
-        self.video_writer = cv2.VideoWriter(self.video_temp_out_name, cv2.VideoWriter_fourcc(*'mp4v'), self.fps, self.size)
+        self.video_temp_file = tempfile.NamedTemporaryFile(suffix='.mp4', delete=True)
+        self.video_writer = cv2.VideoWriter(self.video_temp_file.name, cv2.VideoWriter_fourcc(*'mp4v'), self.fps, self.size)
         self.video_out_name = os.path.join(os.path.dirname(self.video_path), f'{self.vd_name}_no_sub.mp4')
-
+        fluid.install_check.run_check()
+        if torch.cuda.is_available():
+            print('use GPU for acceleration')
+        # 总处理进度
+        self.progress_total = 0
+        self.progress_remover = 0
+        self.isFinished = False
+        # 预览帧
+        self.preview_frame = None
 
     @staticmethod
     def get_coordinates(dt_box):
@@ -144,28 +155,38 @@ class SubtitleRemover:
         return coordinate_list
 
     def run(self):
+        # 记录开始时间
+        start_time = time.time()
         # 寻找字幕帧
-        sub_list = self.sub_detector.find_subtitle_frame_no()
+        self.progress_total = 0
+        sub_list = self.sub_detector.find_subtitle_frame_no(sub_remover=self)
         index = 0
-        tbar = tqdm(total=int(self.frame_count), unit='f', position=0, file=sys.__stdout__, desc='字幕去除')
+        tbar = tqdm(total=int(self.frame_count), unit='frame', position=0, file=sys.__stdout__, desc='Subtitle Removing')
+        print('[Processing] start removing subtitles...')
         while True:
             ret, frame = self.video_cap.read()
             if not ret:
                 break
+            original_frame = frame
             index += 1
             if index in sub_list:
                 masks = self.create_mask(frame, sub_list[index])
                 frame = self.inpaint_frame(frame, masks)
+            self.preview_frame = cv2.hconcat([original_frame, frame])
             self.video_writer.write(frame)
             tbar.update(1)
+            self.progress_remover = 100 * float(index)/float(self.frame_count) // 2
+            self.progress_total = 50 + self.progress_remover
         self.video_cap.release()
         self.video_writer.release()
         # 将原音频合并到新生成的视频文件中
         self.merge_audio_to_video()
-        print(f"视频生字幕去除成功，文件路径：{self.video_out_name}")
+        print(f"[Finished]Subtitle successfully removed, video generated at：{self.video_out_name}")
+        print(f'time cost: {round(time.time() - start_time, 2)}s')
+        self.isFinished = True
 
     @staticmethod
-    def inpaint( img, mask):
+    def inpaint(img, mask):
         img_inpainted = inpaint_img_with_lama(img, mask, config.LAMA_CONFIG, config.LAMA_MODEL_PATH, device=config.device)
         return img_inpainted
 
@@ -189,29 +210,28 @@ class SubtitleRemover:
         return masks
 
     def merge_audio_to_video(self):
-        temp = tempfile.NamedTemporaryFile(suffix='.aac', delete=False)
+        temp = tempfile.NamedTemporaryFile(suffix='.aac', delete=True)
         audio_extract_command = [config.FFMPEG_PATH,
                                  "-y", "-i", self.video_path,
                                  "-acodec", "copy",
                                  "-vn", "-loglevel", "error", temp.name]
         use_shell = True if os.name == "nt" else False
         subprocess.check_output(audio_extract_command, stdin=open(os.devnull), shell=use_shell)
-        if os.path.exists(self.video_temp_out_name):
+        if os.path.exists(self.video_temp_file.name):
             audio_merge_command = [config.FFMPEG_PATH,
-                                   "-y", "-i", self.video_temp_out_name,
+                                   "-y", "-i", self.video_temp_file.name,
                                    "-i", temp.name,
                                    "-vcodec", "copy",
                                    "-acodec", "copy",
                                    "-loglevel", "error", self.video_out_name]
             subprocess.check_output(audio_merge_command, stdin=open(os.devnull), shell=use_shell)
-        if os.path.exists(self.video_temp_out_name):
-            os.remove(self.video_temp_out_name)
         temp.close()
+        self.video_temp_file.close()
 
 
 if __name__ == '__main__':
     # 提示用户输入视频路径
-    video_path = input(f"请输入视频文件路径: ").strip()
+    video_path = input(f"Please input video file path: ").strip()
     # 新建字幕提取对象
     sd = SubtitleRemover(video_path)
     sd.run()
