@@ -1,3 +1,5 @@
+简体中文 | [English](README_en.md)
+
 ## 项目简介
 
 ![License](https://img.shields.io/badge/License-Apache%202-red.svg)
@@ -11,9 +13,7 @@ Video-subtitle-remover (vsr) 是一款基于AI技术，将视频中的硬字幕�
 - 支持自定义字幕位置，仅去除定义位置中的字幕（传入位置）
 - 支持全视频自动去除所有文本（不传入位置）
 
-**程序界面：**
-
-<img src="https://github.com/YaoFANGUK/video-subtitle-remover/raw/main/design/demo.png" alt="demo.png" width="650"/>
+<p style="text-align:center;"><img src="https://github.com/YaoFANGUK/video-subtitle-remover/raw/main/design/demo.png" alt="demo.png"/></p>
 
 > 直接下载压缩包解压运行，如果不能运行再按照下面的教程，尝试源码安装conda环境运行
 
@@ -21,15 +21,11 @@ Video-subtitle-remover (vsr) 是一款基于AI技术，将视频中的硬字幕�
 
 Windows GPU版本v1.0.0（GPU）：
 
-- 百度网盘:  <a href="https://pan.baidu.com/s/1Vnb82JNSnWFCGBsYL9fFeA?pwd=vsr1">vsr_windows_gpu_v1.0.0.7z</a> 提取码：**vsr1**
+- 百度网盘:  <a href="https://pan.baidu.com/s/1t0djUPjQ96X8U9HisyoiYA?pwd=vsr1">vsr_windows_gpu_v1.0.0.7z</a> 提取码：**vsr1**
 
 - Google Drive:  <a href="https://drive.google.com/drive/folders/1NRgLNoHHOmdO4GxLhkPbHsYfMOB_3Elr?usp=sharing">vsr_windows_gpu_v1.0.0.7z</a> 
 
 > 仅供具有Nvidia显卡的用户使用(AMD的显卡不行)
-
-**效果演示：**
-
-<a href="https://b23.tv/guEbl9C"><img src="https://github.com/YaoFANGUK/video-subtitle-remover/raw/main/design/demo.jpg" alt="demo.jpg" width="650"/></a>
 
 ## 视频演示
 

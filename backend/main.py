@@ -4,6 +4,7 @@ from pathlib import Path
 import threading
 import cv2
 import sys
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
@@ -83,15 +84,15 @@ class SubtitleDetect:
                     if self.sub_area is not None:
                         s_ymin, s_ymax, s_xmin, s_xmax = self.sub_area
                         if (s_xmin <= xmin and xmax <= s_xmax
-                            and s_ymin <= ymin
-                            and ymax <= s_ymax):
+                                and s_ymin <= ymin
+                                and ymax <= s_ymax):
                             temp_list.append((xmin, xmax, ymin, ymax))
                     else:
                         temp_list.append((xmin, xmax, ymin, ymax))
                 subtitle_frame_no_list[current_frame_no] = temp_list
             tbar.update(1)
             if sub_remover:
-                sub_remover.progress_total = (100 * float(current_frame_no)/float(frame_count)) // 2
+                sub_remover.progress_total = (100 * float(current_frame_no) / float(frame_count)) // 2
         print('[Finished] Finished finding subtitles...')
         return subtitle_frame_no_list
 
@@ -118,8 +119,9 @@ class SubtitleRemover:
         self.frame_width = int(self.video_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         # 创建字幕检测对象
         self.sub_detector = SubtitleDetect(self.video_path, self.sub_area)
+        # 创建视频临时对象，windows下delete=True会有permission denied的报错
+        self.video_temp_file = tempfile.NamedTemporaryFile(suffix='.mp4', delete=False)
         # 创建视频写对象
-        self.video_temp_file = tempfile.NamedTemporaryFile(suffix='.mp4', delete=True)
         self.video_writer = cv2.VideoWriter(self.video_temp_file.name, cv2.VideoWriter_fourcc(*'mp4v'), self.fps, self.size)
         self.video_out_name = os.path.join(os.path.dirname(self.video_path), f'{self.vd_name}_no_sub.mp4')
         fluid.install_check.run_check()
@@ -175,7 +177,7 @@ class SubtitleRemover:
             self.preview_frame = cv2.hconcat([original_frame, frame])
             self.video_writer.write(frame)
             tbar.update(1)
-            self.progress_remover = 100 * float(index)/float(self.frame_count) // 2
+            self.progress_remover = 100 * float(index) / float(self.frame_count) // 2
             self.progress_total = 50 + self.progress_remover
         self.video_cap.release()
         self.video_writer.release()
@@ -184,6 +186,11 @@ class SubtitleRemover:
         print(f"[Finished]Subtitle successfully removed, video generated at：{self.video_out_name}")
         print(f'time cost: {round(time.time() - start_time, 2)}s')
         self.isFinished = True
+        if os.path.exists(self.video_temp_file.name):
+            try:
+                os.remove(self.video_temp_file.name)
+            except Exception:
+                print(f'failed to delete temp file {self.video_temp_file.name}')
 
     @staticmethod
     def inpaint(img, mask):
@@ -210,7 +217,8 @@ class SubtitleRemover:
         return masks
 
     def merge_audio_to_video(self):
-        temp = tempfile.NamedTemporaryFile(suffix='.aac', delete=True)
+        # 创建音频临时对象，windows下delete=True会有permission denied的报错
+        temp = tempfile.NamedTemporaryFile(suffix='.aac', delete=False)
         audio_extract_command = [config.FFMPEG_PATH,
                                  "-y", "-i", self.video_path,
                                  "-acodec", "copy",
@@ -227,6 +235,11 @@ class SubtitleRemover:
             subprocess.check_output(audio_merge_command, stdin=open(os.devnull), shell=use_shell)
         temp.close()
         self.video_temp_file.close()
+        if os.path.exists(temp.name):
+            try:
+                os.remove(temp.name)
+            except Exception:
+                print(f'failed to delete temp file {temp.name}')
 
 
 if __name__ == '__main__':
