@@ -27,9 +27,13 @@ Windows GPU Version v1.0.0 (GPU):
 
 > For use only by users with Nvidia graphics cards (AMD graphics cards are not supported).
 
-## Video Demonstration
+## Demonstration
 
-<a href="https://b23.tv/guEbl9C">Click to view demo video👇</a>
+- GUI:
+
+<p style="text-align:center;"><img src="https://github.com/YaoFANGUK/video-subtitle-remover/raw/main/design/demo2.gif" alt="demo2.gif"/></p>
+
+- <a href="https://b23.tv/guEbl9C">Click to view demo video👇</a>
 
 <p style="text-align:center;"><a href="https://b23.tv/guEbl9C"><img src="https://github.com/YaoFANGUK/video-subtitle-remover/raw/main/design/demo.gif" alt="demo.gif"/></a></p>
 
