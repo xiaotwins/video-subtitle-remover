@@ -27,9 +27,13 @@ Windows GPU版本v1.0.0（GPU）：
 
 > 仅供具有Nvidia显卡的用户使用(AMD的显卡不行)
 
-## 视频演示
+## 演示
 
-<a href="https://b23.tv/guEbl9C">点击查看演示视频👇</a>
+- GUI版：
+
+<p style="text-align:center;"><img src="https://github.com/YaoFANGUK/video-subtitle-remover/raw/main/design/demo2.gif" alt="demo2.gif"/></p>
+
+- <a href="https://b23.tv/guEbl9C">点击查看演示视频👇</a>
 
 <p style="text-align:center;"><a href="https://b23.tv/guEbl9C"><img src="https://github.com/YaoFANGUK/video-subtitle-remover/raw/main/design/demo.gif" alt="demo.gif"/></a></p>
 
